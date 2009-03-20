@@ -1,0 +1,212 @@
+%{
+// vim: syntax=yacc
+#define YYDEBUG 1
+#include "ast.h"
+#include <assert.h>
+#include <string.h>
+
+#define YYFREE free
+#define YYMALLOC malloc
+
+int yylex(void);
+void yyerror(const char *msg);
+%}
+
+%union {
+	char *str;
+	int num;
+	ast::ast_t *ast;
+	ast::block_t *block;
+	ast::vars_t *vars;
+}
+
+%token TOK_INT;
+%token TOK_FN; 
+%token TOK_ID;
+%token TOK_WHITE;
+%token TOK_STRING;
+%token TOK_EOL;
+%token TOK_EQ;
+
+%type <str> TOK_STRING;
+%type <num> TOK_INT;
+%type <str> TOK_ID;
+
+%type <ast> word;
+%type <block> sentences;
+%type <ast> program;
+%type <ast> sentence;
+%type <ast> assign;
+%type <block> paragraph;
+%type <ast> relop;
+%type <ast> addop;
+%type <ast> mulop;
+%type <str> optionalname;
+%type <vars> optionalargs;
+%type <vars> argdecl;
+%type <ast> listelements;
+%type <ast> dictelements;
+%type <ast> dictelement;
+
+%error-verbose
+
+%%
+
+program
+: lws sentences			{ 
+					$$ = new ast::fn_t(
+						"main",
+						new ast::vars_t(),
+						$2);
+					//std::cout << "\n(load \"nile.scm\")\n";
+					std::cout <<"#include <libnile.h>\n";
+					ast::scope_t sc("global",NULL);
+					sc.reference("print");
+					sc.reference("nil");
+					/* flow control */
+					sc.reference("if");
+					sc.reference("loop");
+					sc.reference("break");
+					sc.reference("apply");
+					/* relop */
+					sc.reference("lessthan");
+					sc.reference("lessthaneq");
+					sc.reference("greaterthan");
+					sc.reference("greaterthaneq");
+					sc.reference("equal");
+					sc.reference("noteq");
+					/* binop */
+					sc.reference("add");
+					sc.reference("sub");
+					sc.reference("add");
+					sc.reference("mul");
+					sc.reference("div");
+					sc.reference("mod");
+					/* list op */
+					sc.reference("cons");
+					sc.reference("head");
+					sc.reference("tail");
+					
+					$$->check(&sc);
+					$$->emitCdecl(); 
+					$$->emitCglobal(); 
+					std::cout << "int main(int argc, char *argv[]) { (new nile_main(new global()))->call(); }\n";
+				}
+
+sentences
+: assign TOK_EOL lws sentences	{ $$=$4; $$->push_sentence($1); }
+| TOK_EOL lws sentences		{ $$=$3; }
+| assign			{ $$=new ast::block_t(); $$->push_sentence($1);}
+| /* empty */			{ $$=new ast::block_t(); }
+;
+
+lws
+: /* empty */
+| TOK_WHITE
+;
+
+assign
+: sentence '=' lws assign	{ $$=new ast::assign_t($1,$4); }
+| sentence			{ $$=$1; }
+;
+
+sentence
+: sentence relop		{ $$=new ast::fncall_t($1,$2); }
+| relop				{ $$=$1; }
+;
+
+relop
+: relop '<' lws mulop		{ $$=ast::fn_call("lessthan",$1,$4,NULL); }
+| relop '<' '=' lws mulop	{ $$=ast::fn_call("lessthaneq",$1,$5,NULL);}
+| relop '>' lws mulop		{ $$=ast::fn_call("greaterthan",$1,$4,NULL);}
+| relop '>' '=' lws mulop	{ $$=ast::fn_call("greaterthaneq",$1,$5,NULL);}
+| relop TOK_EQ lws mulop	{ $$=ast::fn_call("equal",$1,$4,NULL); }
+| relop '!' '=' lws mulop	{ $$=ast::fn_call("noteq",$1,$5,NULL); }
+| mulop				{ $$=$1; }
+;
+
+mulop
+: mulop '*' lws addop		{ $$=ast::fn_call("mul",$1,$4,NULL);}
+| mulop '/' lws addop		{ $$=ast::fn_call("div",$1,$4,NULL);}
+| mulop '%' lws addop		{ $$=ast::fn_call("mod",$1,$4,NULL);}
+| addop				{ $$=$1; }
+;
+
+addop
+: addop '+' lws word		{ $$=ast::fn_call("add",$1,$4,NULL);}
+| addop '-' lws word		{ $$=ast::fn_call("sub",$1,$4,NULL);}
+| word				{ $$=$1; }
+;
+
+word
+: TOK_FN lws optionalname optionalargs lws paragraph
+	{ 
+		if (strcmp($3,"")==0)
+			$$ = ast::fn_def($3,$4,$6); 
+		else {
+			$$ = new ast::assign_t(new ast::id_t($3),ast::fn_def($3,$4,$6));
+			free($3);
+		}
+	}
+| TOK_ID lws
+	{ assert($1); $$ = new ast::id_t($1); free($1); }
+| TOK_INT lws
+	{ $$ = new ast::num_t($1); }
+| TOK_STRING lws
+	{ assert($1); $$ = new ast::string_t($1); free($1); }
+| '[' lws listelements optionalcomma ']' lws 
+	{ $$ = $3; }
+| '[' lws dictelements optionalcomma ']' lws
+	{ $$ = $3; }
+| '(' lws sentence ')' lws
+	{ $$ = $3; }
+| paragraph
+	{ $$ = $1; }
+;
+
+optionalcomma
+: ',' lws
+| /* Empty */
+;
+
+optionalname
+: /* Empty */ 			{ 
+		static int counter=0;
+		char buffer[1024];
+		snprintf(buffer,sizeof(buffer),"priv%d",counter++);
+		$$=strdup(buffer); 
+	}
+| TOK_ID lws 			{ $$=strdup($1); free($1); }
+;
+
+optionalargs
+: /* Empty */			{ $$ = new ast::vars_t(); }
+| '(' lws argdecl ')' lws	{ $$ = $3; }
+| '(' lws ')' lws		{ $$ = new ast::vars_t(); }
+;
+
+argdecl
+: argdecl ',' lws TOK_ID lws 
+	{ $$=$1; $$->insert($4); free($4); }
+| TOK_ID
+	{ $$ = new ast::vars_t(); $$->insert($1); free($1); }
+;
+
+listelements
+: sentence ',' lws listelements { $$=ast::fn_call("cons",$1,$4,NULL); }
+| sentence { $$=ast::fn_call("cons",$1,new ast::id_t("nil"),NULL); }
+;
+
+dictelements
+: dictelements ',' lws dictelement 
+| dictelement
+;
+
+dictelement
+: sentence '=' '>' lws sentence 
+;
+
+paragraph
+: '{' lws sentences '}' lws 		{ $$ = $3; }
+;
+

@@ -1,0 +1,3 @@
+print "testing comparisons\n"
+print "hello world\n"
+print 1+1

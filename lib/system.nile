@@ -1,0 +1,56 @@
+
+fn while(cond) {
+	fn (block) { loop { if cond block break } } 
+} 
+
+fn for(init) {
+	init
+	fn (cond) {
+		fn (step) {
+			fn (block) {
+				loop {
+					if cond {
+						apply block block
+						apply step step
+					} break
+				}
+			}
+		} 
+	} 
+} 
+
+fn map(x) {
+	f=x
+	fn (y) {
+		l=y
+		if l==nil nil { cons (f (head l)) (map f (tail l)) }
+	}
+}
+
+fn foldl(f) {
+	fn (v) {
+		fn (l) {
+			if l==nil v { f (foldl f v (tail l)) (head l) }
+		}
+	}
+}
+
+fn foldr(f) {
+	fn (v) {
+		fn (l) {
+			if l==nil v { f (head l) (foldl f v (tail l)) }
+		}
+	}
+}
+
+fn filter(f) {
+	fn (l) {
+		if l==nil nil { 
+			if (f (head l)) {
+				cons (head l) (filter f (tail l))
+			} {
+				filter f (tail l)
+			}
+		}
+	}
+}

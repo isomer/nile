@@ -1,0 +1,11 @@
+
+fn fib(x) {
+	n=x
+	if n<3 1 { (fib (n-1)) + (fib (n-2)) }
+}
+
+i=1
+for { } { i<=10 } { i=i+1 } {
+	print (fib i) "\n"
+}
+

@@ -1,0 +1,32 @@
+print "testing comparisons: "
+
+a=1
+
+if a<2 { 
+	print "success\n"
+} {
+	print "failed\n"
+}
+
+if 2>a {
+	print "success\n"
+} {
+	print "failed\n"
+}
+
+if a>2 {
+	print "failed\n"
+} {
+	print "success\n"
+}
+
+fn greet(who) {
+	print "Hello " who "\n"
+}
+
+fn dostuff {
+	greet "World"
+}
+
+dostuff 
+

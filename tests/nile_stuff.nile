@@ -1,0 +1,40 @@
+
+
+fn while(cond,body) {
+	if cond {
+		body
+		while cond body
+	} 
+}
+
+fn for(init,cond,incr,body) {
+	init
+	while cond {
+		body
+		incr
+	}
+}
+
+fn true(ifTrue) {
+	ret=ifTrue
+	return fn (ifFalse) {
+		return ret
+	}
+}
+
+fn false(ifTrue) {
+	return fn (ifFalse) {
+		return ifFalse
+	}
+}
+
+fn if(cond) {
+	cond
+}
+
+fn display(message) {
+	output message
+	return display
+}
+
+
